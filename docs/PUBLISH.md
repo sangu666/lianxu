@@ -15,4 +15,6 @@ git push -u origin main
 
 使用GitHub连接或命令行登录，不在聊天、源码或仓库中粘贴访问令牌。远程仓库名已存在时先核实，不覆盖或强制推送已有仓库。
 
-当前GitHub Actions只检查代码，不会自动部署。未来可以单独配置GitHub Pages，将dist作为站点产物；发布源码并不等于发布已验证的AI产品。
+GitHub Actions先检查代码；main推送的检查成功后，按package.json版本创建对应GitHub Release与标签。PR不运行发布任务，已有同版本Release不会被覆盖。写权限只给发布任务，令牌由平台临时提供。
+
+目前不自动部署网页。未来可以单独配置GitHub Pages，将dist作为站点产物；发布源码并不等于发布已验证的AI产品。

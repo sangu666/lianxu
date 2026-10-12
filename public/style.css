@@ -25,6 +25,47 @@ input,
 select {
   font: inherit;
 }
+/* 备注使用原生textarea；操作区可换行，手机屏幕上保留完整按钮名称。 */
+textarea {
+  font: inherit;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  resize: vertical;
+  color: var(--ink);
+  background: var(--surface);
+}
+textarea:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 3px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 16px 0;
+}
+.error-text {
+  color: var(--orange);
+}
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  color: var(--ink);
+  width: min(480px, calc(100vw - 32px));
+}
+dialog::backdrop {
+  background: rgb(25 45 37 / 55%);
+}
+#workout-notes {
+  margin-top: 24px;
+}
+#workout-notes label {
+  margin-bottom: 12px;
+}
 button,
 a,
 input,
