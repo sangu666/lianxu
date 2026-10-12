@@ -1,0 +1,23 @@
+{
+  "name": "lianxu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "练序 — an open-source fitness coaching prototype for home and gym training",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test",
+    "check": "node --check public/app.js && node --check public/core.js && npm run test && npm run build",
+    "format": "prettier --write public scripts test *.json *.md",
+    "format:check": "prettier --check public scripts test *.json *.md"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}
