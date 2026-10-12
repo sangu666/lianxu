@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>练序 · 开源健身教练原型</title>
     <link rel="stylesheet" href="style.css" />
     <script type="module" src="app.js"></script>
@@ -11,19 +11,22 @@
     <a class="skip" href="#content">跳到内容</a>
     <aside class="sidebar">
       <a class="brand" href="#today"
-        ><span class="mark">L</span>练序<span class="brand-sub">FORM & FLOW</span></a
+        ><span class="mark" aria-hidden="true"
+          ><svg viewBox="0 0 32 32"><path d="M9 7v18h15M16 7v11h8" /></svg></span
+        >练序<span class="brand-sub">FORM & FLOW</span></a
       >
       <p class="nav-caption">你的训练，有迹可循</p>
       <nav aria-label="主导航" id="nav"></nav>
       <div class="side-note">
         <span class="tag">产品原型 0.2</span>
         <p>从了解身体，<br />到每一次进步。</p>
-        <small>示例 AI · 本地数据</small>
+        <small>规则模板 · 本地保存</small>
       </div>
     </aside>
     <div class="shell">
       <header class="topbar">
-        <span>个人训练空间</span><span class="pill">交互原型 · 未接入 AI</span>
+        <span class="workspace-label">练序 <span>/</span> 个人训练空间</span
+        ><span class="pill">本地原型 · AI 尚未接入</span>
       </header>
       <main id="content" tabindex="-1"></main>
       <footer>

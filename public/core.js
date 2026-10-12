@@ -1,3 +1,5 @@
+import { validateTrainingPreferences, selectExercises } from './profile-rules.js';
+
 /** 原型核心规则：管理资料、规则模板和版本快照。训练数值是演示，尚未验证为个人处方。 */
 /** 每次返回独立的初始对象；以下身高体重都是虚构示例，不是用户资料。 */
 export function createDefaultState() {
@@ -57,6 +59,7 @@ export function validateProfile(profile) {
   if (!['beginner', 'experienced'].includes(profile.experience)) throw new Error('训练经验无效');
   if (!['home', 'gym'].includes(profile.equipment)) throw new Error('设备类型无效');
   if (!['habit', 'fatloss', 'muscle'].includes(profile.goal)) throw new Error('目标无效');
+  validateTrainingPreferences(profile);
   return profile;
 }
 
@@ -122,7 +125,7 @@ export function normalizeState(input) {
   }
 }
 
-/** 根据经验、设备和频率生成规则模板；adjusted表示是否按演示减少一组。 */
+/** 根据经验、频率、具体设备、时间和动作限制筛选规则模板；adjusted表示演示减量。 */
 export function createPlan(profile, adjusted = false) {
   validateProfile(profile);
   const home = profile.equipment === 'home'; // 是否使用居家动作清单。
@@ -130,21 +133,18 @@ export function createPlan(profile, adjusted = false) {
   // names是训练日名称，upper/lower分别是上肢和下肢的备选动作。
   const names =
     profile.days === 3 ? ['全身 A', '全身 B', '全身 C'] : ['上肢 A', '下肢 A', '上肢 B', '下肢 B'];
-  const upper = home
-    ? ['哑铃地板卧推', '单臂哑铃划船', '站姿哑铃推举', '哑铃侧平举']
-    : ['器械推胸', '坐姿划船', '高位下拉', '哑铃侧平举'];
-  const lower = home
-    ? ['高脚杯深蹲', '哑铃罗马尼亚硬拉', '自重臀桥', '平板支撑']
-    : ['腿举', '罗马尼亚硬拉', '腿弯举', '平板支撑'];
   const sets = Math.max(1, (novice ? 2 : 3) - (adjusted ? 1 : 0)); // 每动作组数，最低保留1组。
   return names.map((name, index) => ({
     name,
-    exercises:
+    ...selectExercises(
+      profile,
       profile.days === 3
-        ? [lower[0], upper[0], upper[1], lower[1]]
+        ? ['squat', 'push', 'row', 'hinge']
         : index % 2 === 0
-          ? [...upper]
-          : [...lower],
+          ? ['push', 'row', home ? 'overhead' : 'verticalPull', 'shoulder']
+          : ['squat', 'hinge', home ? 'glute' : 'curl', 'core'],
+      sets,
+    ),
     sets,
     reps: novice ? '8–12' : '6–12',
   }));

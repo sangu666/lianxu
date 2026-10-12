@@ -86,7 +86,7 @@ export function createWorkoutView({ getState, commit, getPlan, getDay, date, ren
         <label>剩余次数 RIR<select name="rir">${[3, 2, 1, 0].map((value) => `<option value="${value}" ${value === (editing?.rir ?? 2) ? 'selected' : ''}>${value === 3 ? '3 次以上' : `${value} 次`}</option>`).join('')}</select></label></div>
         <label class="check"><input name="pain" type="checkbox" ${editing?.pain ? 'checked' : ''}>这组动作出现疼痛或不适</label>
         <div class="actions"><button type="submit">${editing ? '保存修改' : '保存这一组'}</button>${editing ? '<button type="button" class="secondary" id="cancel-edit">取消编辑</button>' : ''}</div></form>
-        <p class="muted">哑铃按单只重量记录。计时动作使用秒数。RIR 3表示3次及以上；疼痛时停止相关动作。</p>
+        <p class="muted">自重动作按0 kg记录；哑铃按单只重量记录。计时动作使用秒数。RIR 3表示3次及以上；疼痛时停止相关动作。</p>
         ${exercise.sets.map((set, index) => `<div class="history"><b>第 ${index + 1} 组</b><p>${escape(summary(set, exercise.unit))}</p><div class="actions"><button class="secondary" data-edit-set="${escape(set.id)}">编辑第 ${index + 1} 组</button><button class="link" data-delete-set="${escape(set.id)}">删除第 ${index + 1} 组</button></div></div>`).join('') || '<div class="empty">这个动作还没有保存的组。</div>'}`
             : '<div class="empty">没有动作记录。</div>'
         }
@@ -100,7 +100,7 @@ export function createWorkoutView({ getState, commit, getPlan, getDay, date, ren
               )
               .join(
                 '',
-              )}</select></label><button style="margin-top:16px" type="submit">开始训练</button></form><p class="muted">开始后保留当时的动作清单和计划版本，后续换计划不会改写记录。</p>`
+              )}</select></label><button style="margin-top:16px" type="submit">开始训练</button></form><p class="muted">若所选训练日没有可安排动作，请先修改资料。开始后保留当时的动作清单和计划版本，后续换计划不会改写记录。</p>`
       }</section>
         <section class="card"><div class="row"><h2>训练历史</h2><button id="current-workout" class="secondary">${state.workouts.some((item) => item.status === 'active') ? '返回进行中的训练' : '开始新训练'}</button></div>
         ${
@@ -130,6 +130,8 @@ export function createWorkoutView({ getState, commit, getPlan, getDay, date, ren
         if (getState().workouts.some((item) => item.status === 'active'))
           throw new Error('请先完成当前训练');
         const day = getPlan()[Number(new FormData(event.target).get('day'))];
+        if (!day?.exercises.length)
+          throw new Error('当前训练日没有可用动作，请先修改个人资料中的设备或动作限制');
         const fresh = createWorkout({
           id: id(),
           date: date(),

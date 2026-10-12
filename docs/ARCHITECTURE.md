@@ -2,6 +2,8 @@
 
 当前是本地可运行静态原型，不是Next.js生产工程。
 
+`public/profile-rules.js` 新增个人训练条件选项、扩展字段校验与最小动作筛选规则；`core.js` 调用它生成规则模板。旧资料缺省的新字段仅在计算与表单显示时推定，读取不会改写历史。字段说明见 `PROFILE-DATA.md`。
+
 `public/app.js`负责路由、全局状态和资料事件；`public/workout-view.js`负责训练页面、确认框和备份交互；`public/workouts.js`负责训练校验、迁移与组操作；`public/storage.js`负责完整状态校验、保存、迁移和备份；`public/core.js`负责资料验证、模板、恢复提案和版本快照；`scripts/serve.mjs`只提供public目录静态资源，无数据API；`scripts/build.mjs`将前端复制到dist。
 
 浏览器记录不进入仓库或构建。存储损坏时提示读取失败并禁止普通写入，保留原始记录下载入口。存储失败时保持最后一次成功状态；不会显示保存成功。其他标签页修改会提示刷新。照片只用Object URL预览，移除或刷新释放，不进行AI分析。

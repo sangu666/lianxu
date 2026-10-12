@@ -1,3 +1,10 @@
+import {
+  EQUIPMENT_OPTIONS,
+  PATTERN_OPTIONS,
+  PREFERENCE_OPTIONS,
+  SESSION_MINUTES,
+  trainingPreferences,
+} from './profile-rules.js';
 import { createPlan, createReview, advanceVersion } from './core.js';
 import {
   loadState,
@@ -113,6 +120,15 @@ const choice = (arr, value) =>
     .join('');
 const heading = (k, t, s) =>
   `<div class="heading"><div class="eyebrow">${k}</div><h1>${t}</h1><p class="sub">${s}</p></div>`;
+/** 可选清单使用原生复选框；名称由固定选项定义，勾选值从已校验资料读取。 */
+function checkboxOptions(name, options, selected) {
+  return options
+    .map(
+      ([value, label]) =>
+        `<label class="option-check"><input type="checkbox" name="${name}" value="${value}" ${selected.includes(value) ? 'checked' : ''}><span>${label}</span></label>`,
+    )
+    .join('');
+}
 /** 获取当前资料对应的规则模板，不调用AI。 */
 function plan() {
   return createPlan(state.profile, state.adjusted);
@@ -120,29 +136,39 @@ function plan() {
 /** 以下视图函数返回HTML字符串；由render统一放入内容区。 */
 function today() {
   const p = state.profile; // p是profile的简写，代表当前基础资料。
+  // 周一是统计起点；使用上海日期与UTC日历运算，避免电脑时区改变周边界。
+  const todayDate = date();
+  const weekStart = new Date(`${todayDate}T00:00:00Z`);
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+  const weekStartDate = weekStart.toISOString().slice(0, 10);
+  const completedThisWeek = state.workouts.filter(
+    (item) => item.status === 'completed' && item.date >= weekStartDate && item.date <= todayDate,
+  ).length; // 本周已完成训练次数，不含进行中的训练。
+  const progressPercent = Math.min(100, (completedThisWeek / p.days) * 100);
   return (
-    heading('YOUR OWN PACE', '让每一次训练，都有方向。', '先建立适合自己的节奏，再一起关注变化。') +
-    `<section class="hero"><div><div class="eyebrow">NEXT SESSION / 模板示例</div><h2>${plan()[0].name}<br>从一次稳稳的训练开始</h2><p>${p.equipment === 'home' ? '居家 · 哑铃与自重' : '健身房 · 器械与自由重量'} / 每周 ${p.days} 次 / 版本 ${state.version}</p><button data-go="log">开始记录训练 →</button></div><div class="hero-art"><div class="orbit"></div><svg viewBox="0 0 240 240" aria-hidden="true"><path d="M42 140c24-2 31-64 70-62s42 62 81 24" stroke="#cdebb8" stroke-width="16" stroke-linecap="round" fill="none"/><circle cx="192" cy="102" r="9" fill="#f3ceaa"/><path d="M51 173h132" stroke="#729880" stroke-width="1"/><text x="55" y="202" fill="#dfebdf" font-size="12" letter-spacing="4">KEEP MOVING</text></svg></div></section><div class="metric-grid"><div class="metric"><small>已记训练组数</small><b>${state.logs.length}</b><small>你的本地记录</small></div><div class="metric"><small>最近记录体重</small><b>${state.weights.length ? esc(state.weights.at(-1).value) : '—'}</b><small>${state.weights.length ? 'kg · 你的记录' : '尚未记录'}</small></div><div class="metric"><small>计划训练频率</small><b>${p.days}<small style="display:inline"> 次 / 周</small></b><small>可在资料中修改</small></div></div><div class="grid"><section class="card"><div class="row"><h2>这一周，循序向前</h2><span class="tag">排期示例</span></div><p class="muted">训练日之间安排恢复，具体时间由你决定。</p><div class="week">${['一', '二', '三', '四', '五', '六', '日'].map((d, i) => `<div class="day ${[0, 2, 4, ...(p.days === 4 ? [5] : [])].includes(i) ? 'on' : ''}"><b>周${d}</b>${[0, 2, 4, ...(p.days === 4 ? [5] : [])].includes(i) ? '训练' : '恢复'}</div>`).join('')}</div></section><section class="card"><div class="eyebrow">START WITH YOU</div><h2>身体资料，是计划的起点</h2><p class="muted">经验、设备和你的目标比一张照片更完整。照片可以跳过。</p><button class="secondary" data-go="body">完善我的资料 →</button></section></div>`
+    heading('YOUR OWN PACE', '今天，循序向前。', '让每一次认真，都成为看得见的进步。') +
+    `<section class="hero"><div><div class="eyebrow">YOUR NEXT SESSION · 规则模板</div><h2>${plan()[0].name}</h2><p>${p.equipment === 'home' ? '居家训练' : '健身房训练'} / 每周 ${p.days} 次 / 版本 ${state.version}</p><button data-go="log">进入训练记录 →</button></div><div class="hero-art"><div class="activity-ring" style="--progress:${progressPercent}%" role="img" aria-label="本周完成 ${completedThisWeek} 次训练，计划每周 ${p.days} 次"><div class="ring-center"><span>本周完成</span><strong>${completedThisWeek}<small> / ${p.days}</small></strong><span>次训练</span></div></div></div></section><div class="metric-grid"><div class="metric"><small>已记训练组数</small><b>${state.logs.length}</b><small>你的本地记录</small></div><div class="metric"><small>最近记录体重</small><b>${state.weights.length ? esc(state.weights.at(-1).value) : '—'}</b><small>${state.weights.length ? 'kg · 你的记录' : '尚未记录'}</small></div><div class="metric"><small>计划训练频率</small><b>${p.days}<small style="display:inline"> 次 / 周</small></b><small>可在资料中修改</small></div></div><div class="grid"><section class="card"><div class="row"><h2>这一周，循序向前</h2><span class="tag">排期示例</span></div><p class="muted">训练日之间安排恢复，具体时间由你决定。</p><div class="week">${['一', '二', '三', '四', '五', '六', '日'].map((d, i) => `<div class="day ${[0, 2, 4, ...(p.days === 4 ? [5] : [])].includes(i) ? 'on' : ''}"><b>周${d}</b>${[0, 2, 4, ...(p.days === 4 ? [5] : [])].includes(i) ? '训练' : '恢复'}</div>`).join('')}</div></section><section class="card"><div class="eyebrow">START WITH YOU</div><h2>身体资料，是计划的起点</h2><p class="muted">经验、设备和你的目标比一张照片更完整。照片可以跳过。</p><button class="secondary" data-go="body">完善我的资料 →</button></section></div>`
   );
 }
 function body() {
   const p = state.profile; // 此页面用于展示和编辑基础资料。
+  const prefs = trainingPreferences(p); // 旧资料缺省字段仅用于显示，保存后才进入新版本快照。
   return (
     heading(
       'KNOW YOURSELF',
       '先了解你，再决定怎么练。',
       '新手居家和健身房进阶，都从同一份资料开始。',
     ) +
-    `<div class="notice">初始值为虚构示例，请按需修改。原型只按经验、设备与频率切换训练模板，不会分析你的照片。</div><div class="grid"><section class="card"><h2>我的基础资料</h2><form id="profile"><div class="form-grid"><label>年龄<input name="age" type="number" min="18" max="100" value="${p.age}" required></label><label>身高 / cm<input name="height" type="number" min="100" max="230" value="${p.height}" required></label><label>体重 / kg<input name="weight" type="number" min="30" max="250" step="0.1" value="${p.weight}" required></label><label>训练经验<select name="experience">${choice(
+    `<div class="notice">初始值为虚构示例，请按需修改。原型按明确资料筛选规则模板，不会分析你的照片或解读伤病备注。</div><div class="grid"><section class="card"><h2>我的基础资料</h2><form id="profile"><div class="form-grid"><label>年龄<input name="age" type="number" min="18" max="100" value="${p.age}" required></label><label>身高 / cm<input name="height" type="number" min="100" max="230" value="${p.height}" required></label><label>体重 / kg<input name="weight" type="number" min="30" max="250" step="0.1" value="${p.weight}" required></label><label>训练经验<select name="experience">${choice(
       [
         ['beginner', '零基础 / 刚开始'],
         ['experienced', '有持续训练经验'],
       ],
       p.experience,
-    )}</select></label><label>可用设备<select name="equipment">${choice(
+    )}</select></label><label>训练环境<select name="equipment">${choice(
       [
-        ['home', '居家：哑铃 + 自重'],
-        ['gym', '健身房：器械 + 自由重量'],
+        ['home', '居家'],
+        ['gym', '健身房'],
       ],
       p.equipment,
     )}</select></label><label>每周训练<select name="days">${choice(
@@ -158,7 +184,10 @@ function body() {
         ['muscle', '增肌与提升表现'],
       ],
       p.goal,
-    )}</select></label></div><p class="muted" style="margin-top:16px">本原型尚未收集伤病、时长和饮食限制；正式版会补齐后再生成个人建议。</p><button type="submit">保存资料并查看模板 →</button></form></section><section class="card"><h2>观察身体，不给身体打分</h2><p>照片反馈会展示可见线条、比例和拍摄局限，再与你的目标一起讨论训练方向。</p><div class="notice warm"><b>体脂范围：暂不可用</b><br>模型尚未验证，原型不输出体脂百分比或肌肉量。</div><p class="muted">身高、体重、力量和伤病都由你提供。图片不是这些资料的替代品。</p></section></div><section class="card"><div class="row"><h2>三视角照片 · 可跳过</h2><span class="tag">仅本页临时预览</span></div><p class="muted">正面、背面、侧面；同一光线和距离，自然站姿，穿贴身运动服，无需露脸。支持 JPEG / PNG / WebP，单张不超过 8 MB。</p><label class="check"><input type="checkbox" id="photo-consent" ${Object.keys(pictures).length ? 'checked' : ''}>我选择在浏览器中预览照片；照片不会上传，刷新页面即清除。</label><div class="photos">${['正面', '背面', '侧面'].map((v, i) => `<div class="photo"><label for="photo${i}">${v}</label><div id="preview${i}">${pictures[i] ? `<img src="${pictures[i]}" alt="${v}照片本地预览">` : bodySVG}</div><input type="file" id="photo${i}" accept="image/jpeg,image/png,image/webp" aria-label="选择${v}照片"><button class="link" data-remove="${i}" ${pictures[i] ? '' : 'disabled'}>删除${v}照片</button></div>`).join('')}</div><p class="muted" style="margin-top:16px">未接入质量检查与 AI，选取照片不会改变分析结果。你也可以直接查看训练模板。</p></section>`
+    )}</select></label></div><fieldset class="profile-section"><legend>训练条件</legend><div class="form-grid"><label>单次可用时间<select name="sessionMinutes">${choice(
+      SESSION_MINUTES.map((value) => [value, `${value} 分钟`]),
+      prefs.sessionMinutes,
+    )}</select></label><label>动作偏好<select name="movementPreference">${choice(PREFERENCE_OPTIONS, prefs.movementPreference)}</select></label></div><h3 class="field-title">具体可用设备</h3><p class="muted">只勾选你能使用的设备；改变训练环境不会自动改变此清单。旧资料的设备是推定值，请核对。</p><div class="option-grid">${checkboxOptions('availableEquipment', EQUIPMENT_OPTIONS, prefs.availableEquipment)}</div></fieldset><fieldset class="profile-section"><legend>动作限制与备注</legend><p class="muted">勾选当前暂不安排的动作类型。规则只按这些明确选项筛选，不判断疾病或康复方案。</p><div class="option-grid">${checkboxOptions('excludedPatterns', PATTERN_OPTIONS, prefs.excludedPatterns)}</div><label class="field-title">补充备注 · 可选<textarea name="restrictionNotes" rows="3" maxlength="1000" placeholder="例如：有些设备需预约；备注仅保存，不自动解读">${esc(prefs.restrictionNotes)}</textarea></label><p class="muted">备注仅在本地与备份中保留，不会自动转为动作限制；请勿填写不必要的隐私信息。</p></fieldset><p id="profile-error" class="error-text" role="alert" tabindex="-1"></p><p class="muted">时长是粗略预算，模板可能因条件缺项。饮食限制与营养计算尚未实现。</p><button type="submit">保存资料并查看模板 →</button></form></section><section class="card"><h2>观察身体，不给身体打分</h2><p>照片反馈会展示可见线条、比例和拍摄局限，再与你的目标一起讨论训练方向。</p><div class="notice warm"><b>体脂范围：暂不可用</b><br>模型尚未验证，原型不输出体脂百分比或肌肉量。</div><p class="muted">身高、体重、力量和伤病都由你提供。图片不是这些资料的替代品。</p></section></div><section class="card"><div class="row"><h2>三视角照片 · 可跳过</h2><span class="tag">仅本页临时预览</span></div><p class="muted">正面、背面、侧面；同一光线和距离，自然站姿，穿贴身运动服，无需露脸。支持 JPEG / PNG / WebP，单张不超过 8 MB。</p><label class="check"><input type="checkbox" id="photo-consent" ${Object.keys(pictures).length ? 'checked' : ''}>我选择在浏览器中预览照片；照片不会上传，刷新页面即清除。</label><div class="photos">${['正面', '背面', '侧面'].map((v, i) => `<div class="photo"><label for="photo${i}">${v}</label><div id="preview${i}">${pictures[i] ? `<img src="${pictures[i]}" alt="${v}照片本地预览">` : bodySVG}</div><input type="file" id="photo${i}" accept="image/jpeg,image/png,image/webp" aria-label="选择${v}照片"><button class="link" data-remove="${i}" ${pictures[i] ? '' : 'disabled'}>删除${v}照片</button></div>`).join('')}</div><p class="muted" style="margin-top:16px">未接入质量检查与 AI，选取照片不会改变分析结果。你也可以直接查看训练模板。</p></section>`
   );
 }
 function planView() {
@@ -169,9 +198,9 @@ function planView() {
     heading(
       'YOUR TRAINING BLUEPRINT',
       '适合你的节奏，才更容易坚持。',
-      '这是根据设备、经验和频率切换的规则模板，尚未经过个人 AI 分析。',
+      '这是按设备、时长、偏好和动作限制筛选的规则模板，尚未经过个人 AI 分析。',
     ) +
-    `<div class="chips"><span class="chip">${state.profile.experience === 'beginner' ? '新手起步' : '训练进阶'}</span><span class="chip">${state.profile.equipment === 'home' ? '居家训练' : '健身房训练'}</span><span class="chip">每周 ${state.profile.days} 次</span><span class="chip">版本 ${state.version}</span></div><div class="tabs" aria-label="训练日">${sessions.map((s, i) => `<button data-day="${i}" aria-pressed="${i === selectedDay}" class="${i === selectedDay ? 'selected' : ''}">${s.name}</button>`).join('')}</div><div class="grid"><section class="card"><h2>${s.name}</h2>${s.exercises.map((e, i) => `<div class="session"><span class="number">0${i + 1}</span><div class="detail"><h3>${e}</h3><small>${e === '平板支撑' ? `${s.sets} 组 × 20–30 秒` : `${s.sets} 组 × ${s.reps} 次`} · 休息 90–120 秒</small></div></div>`).join('')}<button style="margin-top:22px" data-go="log">记录这一练 →</button></section><section class="card"><h2>为什么这样安排？</h2><p>${state.profile.days === 3 ? '全身训练模板让一周三次都覆盖主要动作模式。' : '上下肢模板把训练量分散到四次训练中。'}</p><p>${state.profile.experience === 'beginner' ? '先熟悉动作和记录方式，再逐步增加训练量。' : '用实际组次与恢复反馈讨论进阶，初始重量仍需自己确认。'}</p><div class="notice">不确定动作是否适合或出现疼痛时，停止相关动作并寻求合适指导。</div><p class="muted">此处组次是交互演示。正式版会结合时长、限制、动作教学与可替代选项。</p></section></div>`
+    `<div class="chips"><span class="chip">${state.profile.experience === 'beginner' ? '新手起步' : '训练进阶'}</span><span class="chip">${state.profile.equipment === 'home' ? '居家训练' : '健身房训练'}</span><span class="chip">每周 ${state.profile.days} 次</span><span class="chip">每次 ${trainingPreferences(state.profile).sessionMinutes} 分钟</span><span class="chip">版本 ${state.version}</span></div><div class="tabs" aria-label="训练日">${sessions.map((s, i) => `<button data-day="${i}" aria-pressed="${i === selectedDay}" class="${i === selectedDay ? 'selected' : ''}">${s.name}</button>`).join('')}</div><div class="grid"><section class="card"><div class="row"><h2>${s.name}</h2><span class="tag">粗估 ${s.estimatedMinutes} 分钟</span></div>${s.notes.length ? `<div class="notice warm"><b>模板缺项与时间说明</b><ul>${s.notes.map((note) => `<li>${esc(note)}</li>`).join('')}</ul></div>` : ''}${s.exercises.map((e, i) => `<div class="session"><span class="number">0${i + 1}</span><div class="detail"><h3>${e}</h3><small>${e === '平板支撑' ? `${s.sets} 组 × 20–30 秒` : `${s.sets} 组 × ${s.reps} 次`} · 休息 90–120 秒</small></div></div>`).join('')}<button style="margin-top:22px" data-go="log" ${s.exercises.length ? '' : 'disabled'}>记录这一练 →</button></section><section class="card"><h2>为什么这样安排？</h2><p>${state.profile.days === 3 ? '基础全身模板原有蹲、推、拉和髋铰链位置；筛选后的缺项会在左侧说明。' : '基础上下肢模板分散到四次训练；筛选后的缺项会在左侧说明。'}</p><p>${state.profile.experience === 'beginner' ? '先熟悉动作和记录方式，再逐步增加训练量。' : '用实际组次与恢复反馈讨论进阶，初始重量仍需自己确认。'}</p><div class="notice">不确定动作是否适合或出现疼痛时，停止相关动作并寻求合适指导。</div><p class="muted">此处组次是交互演示，时长是粗略预算。动作教学与更完整的替代库尚未实现。</p></section></div>`
   );
 }
 function logView() {
@@ -202,12 +231,15 @@ function progress() {
 function render() {
   const route = location.hash.slice(1) || 'today'; // 去掉URL片段开头的#，得到页面名。
   const valid = labels.some(([id]) => id === route) ? route : 'today'; // 未知页面回到首页。
-  $('#nav').innerHTML = labels
-    .map(
-      ([id, t], i) =>
-        `<a href="#${id}" class="${id === valid ? 'active' : ''}" ${id === valid ? 'aria-current="page"' : ''}>${icon(i)}${t}</a>`,
-    )
-    .join('');
+  $('#nav').innerHTML =
+    labels
+      .map(
+        ([id, t], i) =>
+          `<a href="#${id}" class="nav-${id} ${id === valid ? 'active' : ''}" ${id === valid ? 'aria-current="page"' : ''}>${icon(i)}<span>${t}</span></a>`,
+      )
+      .join('') +
+    // 手机保留四个高频页面，第五项使用原生details呈现低频入口，支持键盘操作。
+    `<details class="mobile-more"><summary class="${['body', 'food'].includes(valid) ? 'active' : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>更多</span></summary><div class="more-menu"><a href="#body" ${valid === 'body' ? 'aria-current="page"' : ''}>${icon(1)}身体与资料</a><a href="#food" ${valid === 'food' ? 'aria-current="page"' : ''}>${icon(4)}饮食建议</a></div></details>`;
   $('#content').innerHTML =
     (loadError
       ? `<div class="notice warm" role="alert">${esc(loadError)}<button id="download-raw" class="secondary">下载原始记录</button></div>`
@@ -250,12 +282,22 @@ function bind() {
         experience: d.get('experience'),
         equipment: d.get('equipment'),
         goal: d.get('goal'),
+        availableEquipment: d.getAll('availableEquipment'), // 多选设备的稳定编号列表。
+        sessionMinutes: Number(d.get('sessionMinutes')), // 单位分钟。
+        movementPreference: d.get('movementPreference'),
+        excludedPatterns: d.getAll('excludedPatterns'), // 明确排除标签，不从备注猜测。
+        restrictionNotes: d.get('restrictionNotes').trim(),
       };
-      state = advanceVersion(state, newProfile, false, '修改资料');
-      selectedDay = 0;
-      if (!save()) return;
-      location.hash = 'plan';
-      toast('资料已更新：训练模板按设备、经验和频率切换。');
+      try {
+        state = advanceVersion(state, newProfile, false, '修改资料与训练条件');
+        selectedDay = 0;
+        if (!save()) return;
+        location.hash = 'plan';
+        toast('资料已保存，模板已按设备、时长、偏好和限制更新。');
+      } catch (error) {
+        $('#profile-error').textContent = error.message;
+        $('#profile-error').focus();
+      }
     };
   for (let i = 0; i < 3; i++) {
     const input = $(`#photo${i}`);
@@ -374,6 +416,17 @@ window.addEventListener('storage', (event) => {
   if (event.key === STORAGE_KEY && event.newValue !== savedRaw) {
     loadError = '另一页面修改了记录，请刷新后继续。';
     render();
+  }
+});
+// 更多菜单点击外部或按Escape即可收起；监听只注册一次，不随页面重绘重复绑定。
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.mobile-more')) $('.mobile-more')?.removeAttribute('open');
+});
+document.addEventListener('keydown', (event) => {
+  const menu = $('.mobile-more[open]');
+  if (event.key === 'Escape' && menu) {
+    menu.removeAttribute('open');
+    menu.querySelector('summary').focus();
   }
 });
 window.addEventListener('hashchange', () => {

@@ -13,7 +13,7 @@
     "start": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
     "test": "node --test",
-    "check": "node --check public/app.js && node --check public/core.js && node --check public/workouts.js && node --check public/storage.js && node --check public/workout-view.js && npm run test && npm run build",
+    "check": "node --check public/app.js && node --check public/core.js && node --check public/profile-rules.js && node --check public/workouts.js && node --check public/storage.js && node --check public/workout-view.js && npm run test && npm run build",
     "format": "prettier --write public scripts test *.json *.md",
     "format:check": "prettier --check public scripts test *.json *.md"
   },
