@@ -16,3 +16,18 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run check
+  release:
+    # 只有main的推送且检查成功才发布；PR检查不会获得仓库写权限。
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/github-release.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

@@ -1,21 +1,56 @@
+import { createPlan, createReview, advanceVersion } from './core.js';
 import {
-  createDefaultState,
-  normalizeState,
-  createPlan,
-  createReview,
-  advanceVersion,
-} from './core.js';
-const $ = (s) => document.querySelector(s);
-const defaults = createDefaultState();
-let state;
+  loadState,
+  initialState,
+  persistState,
+  projectLogs,
+  STORAGE_KEY,
+  LEGACY_KEY,
+} from './storage.js';
+import { createWorkoutView, downloadText } from './workout-view.js';
+// state是当前完整状态；savedRaw用于阻止其他标签页的并发覆盖。
+const $ = (selector) => document.querySelector(selector);
+let state,
+  savedRaw = null,
+  loadError = '';
 try {
-  state = normalizeState(JSON.parse(localStorage.getItem('lianxu-source-v1')));
-} catch {
-  state = createDefaultState();
+  const loaded = loadState(localStorage);
+  state = loaded.state;
+  savedRaw = loaded.raw;
+} catch (error) {
+  state = initialState();
+  loadError = `记录读取失败：${error.message}。原记录保留；请下载原始记录并检查，修复后刷新页面。`;
 }
-let pictures = {},
-  selectedDay = 0,
+state.logs = projectLogs(state.workouts);
+let lastGoodState = structuredClone(state); // 保存失败时恢复页面状态，不把未写入的数据显示为已保存。
+function commitState(next, { restore = false } = {}) {
+  if (loadError && !restore) throw new Error(loadError);
+  // 完整恢复已由用户确认：允许用有效备份修复坏数据；普通编辑仍禁止越过冲突检查。
+  const raw = persistState(
+    localStorage,
+    next,
+    restore ? localStorage.getItem(STORAGE_KEY) : savedRaw,
+  );
+  state = structuredClone(next);
+  state.logs = projectLogs(state.workouts);
+  savedRaw = raw;
+  lastGoodState = structuredClone(state);
+  loadError = '';
   storageOK = true;
+}
+const workoutPage = createWorkoutView({
+  getState: () => state,
+  commit: commitState,
+  getPlan: () => plan(),
+  getDay: () => selectedDay,
+  date: () => date(),
+  render: () => render(),
+  toast: (message) => toast(message),
+});
+let pictures = {}, // 三视角照片的临时Object URL，用视角编号0/1/2查找，不写入存储。
+  selectedDay = 0, // 正在查看的训练日下标，从0开始，不是星期几。
+  storageOK = true; // 最近存储状态；失败时提示数据仅在页面暂存。
+// labels每项为[路由名, 显示名称]；paths按相同顺序保存导航SVG图标路径。
 const labels = [
   ['today', '今日概览'],
   ['body', '身体与资料'],
@@ -34,29 +69,33 @@ const paths = [
 ];
 const icon = (i) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[i]}"/></svg>`;
 const bodySVG = `<svg viewBox="0 0 100 180" fill="none" aria-hidden="true"><circle cx="50" cy="20" r="14" stroke="currentColor" stroke-width="2"/><path d="M30 45Q50 34 70 45L87 96 76 101 63 67 61 105 70 165 55 165 50 119 45 165 30 165 39 105 37 67 24 101 13 96Z" stroke="currentColor" stroke-width="2"/></svg>`;
+/** 把用户文本中的HTML特殊字符转义，防止备注或名称被当成网页标签执行。 */
 function esc(v) {
   return String(v).replace(
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
   );
 }
+/** 旧页面的资料和体重更新也通过新版保存入口；失败时恢复最后一次成功状态。 */
 function save() {
   try {
-    localStorage.setItem('lianxu-source-v1', JSON.stringify(state));
+    commitState(state);
     return true;
-  } catch {
+  } catch (error) {
+    state = structuredClone(lastGoodState);
     storageOK = false;
-    toast('浏览器无法保存，当前数据仅在本页暂存。');
+    toast(`未保存：${error.message}`);
     return false;
   }
 }
-let toastTimer;
+let toastTimer; // 提示关闭计时器；新提示出现时取消旧计时器，避免提前消失。
 function toast(t) {
   $('#toast').textContent = t;
   $('#toast').style.display = 'block';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => ($('#toast').style.display = 'none'), 4500);
 }
+// 当前原型按上海时区生成YYYY-MM-DD日期；后续多地区使用时需支持用户时区。
 const date = () =>
   new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Shanghai',
@@ -64,6 +103,7 @@ const date = () =>
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+// arr是[选项值, 显示文本]列表；value是当前选中值，返回select中的option标签。
 const choice = (arr, value) =>
   arr
     .map(
@@ -73,18 +113,20 @@ const choice = (arr, value) =>
     .join('');
 const heading = (k, t, s) =>
   `<div class="heading"><div class="eyebrow">${k}</div><h1>${t}</h1><p class="sub">${s}</p></div>`;
+/** 获取当前资料对应的规则模板，不调用AI。 */
 function plan() {
   return createPlan(state.profile, state.adjusted);
 }
+/** 以下视图函数返回HTML字符串；由render统一放入内容区。 */
 function today() {
-  const p = state.profile;
+  const p = state.profile; // p是profile的简写，代表当前基础资料。
   return (
     heading('YOUR OWN PACE', '让每一次训练，都有方向。', '先建立适合自己的节奏，再一起关注变化。') +
     `<section class="hero"><div><div class="eyebrow">NEXT SESSION / 模板示例</div><h2>${plan()[0].name}<br>从一次稳稳的训练开始</h2><p>${p.equipment === 'home' ? '居家 · 哑铃与自重' : '健身房 · 器械与自由重量'} / 每周 ${p.days} 次 / 版本 ${state.version}</p><button data-go="log">开始记录训练 →</button></div><div class="hero-art"><div class="orbit"></div><svg viewBox="0 0 240 240" aria-hidden="true"><path d="M42 140c24-2 31-64 70-62s42 62 81 24" stroke="#cdebb8" stroke-width="16" stroke-linecap="round" fill="none"/><circle cx="192" cy="102" r="9" fill="#f3ceaa"/><path d="M51 173h132" stroke="#729880" stroke-width="1"/><text x="55" y="202" fill="#dfebdf" font-size="12" letter-spacing="4">KEEP MOVING</text></svg></div></section><div class="metric-grid"><div class="metric"><small>已记训练组数</small><b>${state.logs.length}</b><small>你的本地记录</small></div><div class="metric"><small>最近记录体重</small><b>${state.weights.length ? esc(state.weights.at(-1).value) : '—'}</b><small>${state.weights.length ? 'kg · 你的记录' : '尚未记录'}</small></div><div class="metric"><small>计划训练频率</small><b>${p.days}<small style="display:inline"> 次 / 周</small></b><small>可在资料中修改</small></div></div><div class="grid"><section class="card"><div class="row"><h2>这一周，循序向前</h2><span class="tag">排期示例</span></div><p class="muted">训练日之间安排恢复，具体时间由你决定。</p><div class="week">${['一', '二', '三', '四', '五', '六', '日'].map((d, i) => `<div class="day ${[0, 2, 4, ...(p.days === 4 ? [5] : [])].includes(i) ? 'on' : ''}"><b>周${d}</b>${[0, 2, 4, ...(p.days === 4 ? [5] : [])].includes(i) ? '训练' : '恢复'}</div>`).join('')}</div></section><section class="card"><div class="eyebrow">START WITH YOU</div><h2>身体资料，是计划的起点</h2><p class="muted">经验、设备和你的目标比一张照片更完整。照片可以跳过。</p><button class="secondary" data-go="body">完善我的资料 →</button></section></div>`
   );
 }
 function body() {
-  const p = state.profile;
+  const p = state.profile; // 此页面用于展示和编辑基础资料。
   return (
     heading(
       'KNOW YOURSELF',
@@ -120,9 +162,9 @@ function body() {
   );
 }
 function planView() {
-  let sessions = plan();
+  let sessions = plan(); // sessions是本周各训练日模板，不是已完成的训练记录。
   selectedDay = Math.min(selectedDay, sessions.length - 1);
-  const s = sessions[selectedDay];
+  const s = sessions[selectedDay]; // s是当前选中的训练日，包含名称、动作和组次。
   return (
     heading(
       'YOUR TRAINING BLUEPRINT',
@@ -133,39 +175,7 @@ function planView() {
   );
 }
 function logView() {
-  const exercises = plan()[Math.min(selectedDay, plan().length - 1)].exercises;
-  return (
-    heading(
-      'SHOW UP & WRITE IT DOWN',
-      '记录你完成的，而不只是计划的。',
-      '每组的重量、次数和感受，将成为下一次调整的依据。',
-    ) +
-    `<div class="grid"><section class="card"><h2>记录一组训练</h2><form id="logform"><label>动作<select name="exercise">${exercises
-      .filter((e) => e !== '平板支撑')
-      .map((e) => `<option>${e}</option>`)
-      .join(
-        '',
-      )}</select></label><div class="log-grid" style="margin-top:18px"><label>负重 / kg<input name="load" type="number" min="0" max="400" step="0.5" placeholder="例如 10" required></label><label>次数<input name="reps" type="number" min="1" max="100" placeholder="例如 10" required></label><label>剩余次数 RIR<select name="rir">${choice(
-      [
-        [3, '3 次以上'],
-        [2, '2 次'],
-        [1, '1 次'],
-        [0, '0 次'],
-      ],
-      2,
-    )}</select></label></div><label class="check"><input name="pain" type="checkbox">这组动作出现疼痛或不适</label><button type="submit">保存这一组</button></form><p class="muted" style="margin-top:16px">RIR 指结束时估计还能完成几次。哑铃负重按单只记录；真实产品会为各动作统一约定单位。</p></section><section class="card"><h2>你的本地训练记录</h2>${
-      state.logs.length
-        ? state.logs
-            .slice(-5)
-            .reverse()
-            .map(
-              (l) =>
-                `<div class="history"><b>${esc(l.exercise)}</b><br>${esc(l.load)} kg × ${esc(l.reps)} 次 · RIR ${esc(l.rir)} · ${l.pain ? '疼痛反馈' : '无疼痛反馈'}<br><span class="muted">${esc(l.date)} / 版本 ${l.version}</span></div>`,
-            )
-            .join('')
-        : '<div class="empty">还没有记录。<br>保存第一组后，会在这里显示。</div>'
-    }</section></div>`
-  );
+  return workoutPage.html();
 }
 function food() {
   return (
@@ -178,7 +188,7 @@ function food() {
   );
 }
 function progress() {
-  const latest = state.weights.slice(-7);
+  const latest = state.weights.slice(-7); // 最近7次体重记录，用于趋势图和明细。
   return (
     heading(
       'SMALL STEPS, REAL CHANGE',
@@ -188,18 +198,34 @@ function progress() {
     `<div class="grid"><section class="card"><h2>体重记录</h2><form id="weightform" class="form-grid"><label>日期<input name="date" type="date" max="${date()}" value="${date()}" required></label><label>体重 / kg<input name="value" type="number" min="30" max="250" step="0.1" required placeholder="输入体重"></label><button class="span" type="submit">保存体重</button></form>${latest.length ? `<div class="chart" role="img" aria-label="最近${latest.length}次体重记录，原始数值在下方列表"><!-- 以最近数据的相对变化绘图 -->${latest.map((w) => `<div style="height:${50 + ((Number(w.value) - Math.min(...latest.map((x) => Number(x.value)))) / (Math.max(...latest.map((x) => Number(x.value))) - Math.min(...latest.map((x) => Number(x.value))) || 1)) * 60}%"><span>${esc(w.value)}</span></div>`).join('')}</div><p class="chart-label">相对变化示意；按日期排序，不以柱高代表绝对体重</p>${latest.map((w) => `<div class="history row"><span>${esc(w.date)}</span><b>${esc(w.value)} kg</b></div>`).join('')}` : '<div class="empty" style="margin-top:20px">尚无体重记录，保存后再查看趋势。</div>'}</section><section class="card"><h2>恢复反馈 → 调整提案</h2><p class="muted">用一次手动反馈演示流程。正式版会同时检查训练日志、疼痛与依从性。</p><form id="reviewform"><label>最近训练的恢复感受<select name="fatigue"><option value="good">恢复良好</option><option value="tired">疲劳较明显</option></select></label><button class="secondary" style="margin-top:18px" type="submit">查看演示提案</button></form><div id="proposal"></div>${state.adjusted ? '<div class="notice">已接受减量演示，模板的动态动作减少一组。</div><button class="secondary" id="rollback">恢复基础模板</button>' : ''}</section></div><section class="card"><h2>模板版本记录</h2>${state.history.map((v) => `<div class="history">版本 ${v.version} · ${esc(v.reason)} · ${v.profile.days} 次/周 · ${v.adjusted ? '减量' : '基础模板'}</div>`).join('')}</section><section class="card"><h2>照片变化追踪 · 下一阶段</h2><p class="muted">正式版将展示同条件照片对比和拍摄日期。当前照片只临时预览，没有长期保存或变化分析。</p><button class="secondary" data-go="body">查看拍摄引导 →</button></section>`
   );
 }
+/** 从URL的#后读取页面名，生成导航和内容，然后为新生成的元素绑定事件。 */
 function render() {
-  const route = location.hash.slice(1) || 'today';
-  const valid = labels.some(([id]) => id === route) ? route : 'today';
+  const route = location.hash.slice(1) || 'today'; // 去掉URL片段开头的#，得到页面名。
+  const valid = labels.some(([id]) => id === route) ? route : 'today'; // 未知页面回到首页。
   $('#nav').innerHTML = labels
     .map(
       ([id, t], i) =>
         `<a href="#${id}" class="${id === valid ? 'active' : ''}" ${id === valid ? 'aria-current="page"' : ''}>${icon(i)}${t}</a>`,
     )
     .join('');
-  $('#content').innerHTML = { today, body, plan: planView, log: logView, food, progress }[valid]();
+  $('#content').innerHTML =
+    (loadError
+      ? `<div class="notice warm" role="alert">${esc(loadError)}<button id="download-raw" class="secondary">下载原始记录</button></div>`
+      : '') + { today, body, plan: planView, log: logView, food, progress }[valid]();
+  if ($('#download-raw'))
+    $('#download-raw').onclick = () => {
+      try {
+        downloadText(
+          localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY) ?? '{}',
+          'lianxu-raw-recovery.json',
+        );
+      } catch (error) {
+        toast(error.message);
+      }
+    };
   bind();
 }
+/** 绑定当前页面事件；render重建元素后，旧元素上的事件不会自动保留。 */
 function bind() {
   document
     .querySelectorAll('[data-go]')
@@ -214,8 +240,9 @@ function bind() {
   if ($('#profile'))
     $('#profile').onsubmit = (e) => {
       e.preventDefault();
-      const d = new FormData(e.target);
+      const d = new FormData(e.target); // d收集提交表单的字段；e.target就是提交的form。
       const newProfile = {
+        // 表单值通常是字符串，数值字段用Number转换后交给核心模块校验。
         age: Number(d.get('age')),
         height: Number(d.get('height')),
         weight: Number(d.get('weight')),
@@ -226,7 +253,7 @@ function bind() {
       };
       state = advanceVersion(state, newProfile, false, '修改资料');
       selectedDay = 0;
-      save();
+      if (!save()) return;
       location.hash = 'plan';
       toast('资料已更新：训练模板按设备、经验和频率切换。');
     };
@@ -288,39 +315,17 @@ function bind() {
         toast('已清除全部临时照片。');
       }
     };
-  if ($('#logform'))
-    $('#logform').onsubmit = (e) => {
-      e.preventDefault();
-      const d = new FormData(e.target);
-      state.logs.push({
-        exercise: d.get('exercise'),
-        load: Number(d.get('load')),
-        reps: Number(d.get('reps')),
-        rir: Number(d.get('rir')),
-        pain: d.has('pain'),
-        date: date(),
-        version: state.version,
-      });
-      save();
-      render();
-      toast(
-        d.has('pain')
-          ? '记录已暂存：出现疼痛时请停止相关动作，回顾不会建议加量。'
-          : storageOK
-            ? '训练组已保存到本地。'
-            : '记录仅在当前页面暂存。',
-      );
-    };
+  if ($('#current-workout')) workoutPage.bind();
   if ($('#weightform'))
     $('#weightform').onsubmit = (e) => {
       e.preventDefault();
-      const d = new FormData(e.target);
-      const item = { date: d.get('date'), value: Number(d.get('value')) };
-      const found = state.weights.findIndex((w) => w.date === item.date);
+      const d = new FormData(e.target); // 体重表单提交值。
+      const item = { date: d.get('date'), value: Number(d.get('value')) }; // 本次日期与kg数值。
+      const found = state.weights.findIndex((w) => w.date === item.date); // 已有同日记录的位置，-1表示没有。
       if (found >= 0) state.weights[found] = item;
       else state.weights.push(item);
       state.weights.sort((a, b) => a.date.localeCompare(b.date));
-      save();
+      if (!save()) return;
       render();
       toast(storageOK ? '体重已保存，同日记录可覆盖修改。' : '体重仅在当前页面暂存。');
     };
@@ -338,7 +343,7 @@ function bind() {
       if ($('#accept'))
         $('#accept').onclick = () => {
           state = advanceVersion(state, state.profile, true, '接受减量演示');
-          save();
+          if (!save()) return;
           render();
           toast('已建立新的模板版本。');
         };
@@ -346,25 +351,31 @@ function bind() {
   if ($('#rollback'))
     $('#rollback').onclick = () => {
       state = advanceVersion(state, state.profile, false, '恢复基础模板');
-      save();
+      if (!save()) return;
       render();
       toast('已恢复基础模板并建立新版本。');
     };
 }
 $('#clear').onclick = () => {
-  if (confirm('清除这个浏览器中的资料、训练、体重记录和临时照片？')) {
+  if (!confirm('清空当前新版资料与训练记录？建议先导出备份。旧版原始记录保留在独立存储键。'))
+    return;
+  try {
+    commitState(initialState());
     Object.values(pictures).forEach(URL.revokeObjectURL);
     pictures = {};
-    state = createDefaultState();
-    try {
-      localStorage.removeItem('lianxu-source-v1');
-    } catch {
-      storageOK = false;
-    }
     render();
-    toast('已清除本地数据，恢复虚构示例资料。');
+    toast('已清空新版数据，旧版原始记录仍保留。');
+  } catch (error) {
+    toast(`未清空：${error.message}`);
   }
 };
+// 另一标签页保存后，当前页面暂时禁止写入，避免静默覆盖别人的修改。
+window.addEventListener('storage', (event) => {
+  if (event.key === STORAGE_KEY && event.newValue !== savedRaw) {
+    loadError = '另一页面修改了记录，请刷新后继续。';
+    render();
+  }
+});
 window.addEventListener('hashchange', () => {
   render();
   window.scrollTo(0, 0);
