@@ -1,3 +1,6 @@
+import { canonicalExerciseId, findBuiltinExercise } from './exercise-catalog.js';
+import { validatePrescription } from './plan-actions.js';
+
 /**
  * v0.2训练数据模块：创建、校验、迁移记录，不负责页面显示或浏览器存储。
  * 输入有问题时抛出错误，避免把坏记录悄悄变成空列表。
@@ -18,6 +21,7 @@ export const WORKOUT_SCHEMA_VERSION = 2;
 /**
  * 一次训练中的动作实例。
  * @typedef {Object} WorkoutExercise
+ * @property {{sets: number, targetMin: number, targetMax: number, restSeconds: number, reason: string}} [prescription] 开始训练时复制的目标快照；实际成绩仍存入 sets。
  * @property {string} id 本次动作实例ID，用于定位编辑。
  * @property {string} exerciseId 跨训练比较用的动作标识，不是本次实例ID。
  * @property {string} name 记录当时的动作名称。
@@ -28,6 +32,7 @@ export const WORKOUT_SCHEMA_VERSION = 2;
 /**
  * 一次训练的完整记录。
  * @typedef {Object} Workout
+ * @property {number} [revision] 数据库训练修改版本，用于拒绝旧页面覆盖；原浏览器记录没有此字段。
  * @property {string} id 本次训练唯一ID。
  * @property {string} date 本地训练日期，格式YYYY-MM-DD。
  * @property {number} planVersion 当时采用的计划版本。
@@ -137,6 +142,8 @@ export function validateWorkoutData(data) {
       registerId(exercise.id);
       requireValue(isText(exercise.exerciseId, 160) && isText(exercise.name, 120), '动作标识无效');
       requireValue(['reps', 'seconds'].includes(exercise.unit), '动作单位无效');
+      if (exercise.prescription !== undefined)
+        validatePrescription(exercise.prescription, exercise.unit);
       requireValue(Array.isArray(exercise.sets) && exercise.sets.length <= 1000, '训练组列表无效');
       for (const set of exercise.sets) {
         validateSet(set, exercise.unit);
@@ -323,14 +330,17 @@ export function previousExercise(data, exerciseId, unit, excludeWorkoutId) {
     );
   for (const workout of workouts) {
     const exercise = workout.exercises.find(
-      (item) => item.exerciseId === exerciseId && item.unit === unit && item.sets.length,
+      (item) =>
+        canonicalExerciseId(item.exerciseId) === canonicalExerciseId(exerciseId) &&
+        item.unit === unit &&
+        item.sets.length,
     );
     if (exercise) return { date: workout.date, sets: structuredClone(exercise.sets) };
   }
   return null;
 }
 
-/** 当前动作清单使用明确的名称标识，与旧版归档兼容；更名需另做迁移映射。 */
+/** 新训练使用动作库稳定ID；未知旧名称仍保留原标识，避免错误合并。 */
 export function exerciseIdentity(name) {
-  return `legacy-name:${name}`;
+  return findBuiltinExercise(name)?.id ?? `legacy-name:${name}`;
 }

@@ -1,0 +1,101 @@
+-- 中文注释写入 PostgreSQL 元数据，Navicat 可直接查看；不修改列名、类型或业务记录。
+BEGIN;
+
+COMMENT ON TYPE "ExerciseUnit" IS '动作单位：reps=次数，seconds=秒，unspecified=尚未指定（仅允许用于公开动作库）。';
+COMMENT ON TYPE "WorkoutStatus" IS '训练状态：active=进行中，completed=已完成。';
+
+COMMENT ON TABLE "User" IS '用户账户：保存登录邮箱、加盐密码哈希与创建时间；不保存明文密码。';
+COMMENT ON COLUMN "User"."id" IS '用户唯一编号（UUID，主键）；个人数据通过此编号确定归属。';
+COMMENT ON COLUMN "User"."email" IS '登录邮箱，注册时去除首尾空格并转小写，大小写不敏感唯一；旧虚构账户允许为空，邮箱尚未验证。';
+COMMENT ON COLUMN "User"."passwordHash" IS '加盐 scrypt 密码哈希，含算法版本、随机盐和结果；不是明文密码。为空的旧账户不能登录。';
+COMMENT ON COLUMN "User"."createdAt" IS '账户创建时刻，带时区时间戳；默认数据库当前时间。';
+
+COMMENT ON TABLE "Session" IS '登录会话：原始令牌仅在 HttpOnly Cookie 中，数据库只存哈希；退出删除当前会话。';
+COMMENT ON COLUMN "Session"."tokenHash" IS '会话令牌的 SHA-256 哈希，64 位十六进制文本（主键）；不是可直接用于登录的原始令牌。';
+COMMENT ON COLUMN "Session"."sequence" IS '自动递增且唯一的会话创建序号；同一毫秒创建的会话也能确定先后，用于撤销最早的会话。';
+COMMENT ON COLUMN "Session"."userId" IS '所属用户编号，关联 User.id；删除用户时级联删除其会话。';
+COMMENT ON COLUMN "Session"."createdAt" IS '会话创建时刻，带时区时间戳。';
+COMMENT ON COLUMN "Session"."expiresAt" IS '会话绝对过期时刻，必须晚于创建时刻；当前有效期七天，不随访问延期。';
+
+COMMENT ON TABLE "Profile" IS '用户当前资料：每个账户一份；JSON 保存原型字段，revision 用于检查并发修改。';
+COMMENT ON COLUMN "Profile"."userId" IS '所属用户编号，关联 User.id，同时为主键；每个用户最多一份当前资料。';
+COMMENT ON COLUMN "Profile"."data" IS '个人资料 JSON：age 年龄（岁）、height 身高（厘米）、weight 体重（千克）、days 每周训练次数、experience 经验、equipment 环境、goal 目标；可选 availableEquipment 设备、sessionMinutes 分钟、movementPreference 偏好、excludedPatterns 排除类型、restrictionNotes 备注。详细枚举见 docs/PROFILE-DATA.md；备注不作自动医疗判断。';
+COMMENT ON COLUMN "Profile"."revision" IS '资料修改版本，初始为 1；保存时提交 expectedRevision，版本不一致返回冲突，不应手工覆盖版本。';
+COMMENT ON COLUMN "Profile"."updatedAt" IS '资料最后更新时间，带时区时间戳；由 Prisma 写入时维护，直接 SQL 更新不会自动刷新此字段。';
+
+COMMENT ON TABLE "Exercise" IS '公开动作文字资料库：18 条内置与 1324 条社区资料；不含第三方图片、GIF 或视频。';
+COMMENT ON COLUMN "Exercise"."id" IS '动作稳定编号（主键），例如 lianxu:plank 或 hasaneyldrm:2137；译名改变不改变动作身份。';
+COMMENT ON COLUMN "Exercise"."nameZh" IS '中文动作显示名；社区译名尚未经过专业教练逐项审校。';
+COMMENT ON COLUMN "Exercise"."nameEn" IS '来源中的英文原名；内置动作没有英文名时为空字符串。';
+COMMENT ON COLUMN "Exercise"."bodyPart" IS '训练部位的原始标签，例如 shoulders 肩部、waist 腰腹；API 按原始标签筛选，前端显示中文。';
+COMMENT ON COLUMN "Exercise"."equipment" IS '所需设备的目录标签；社区资料使用原始标签，内置资料使用练序设备编号，不应直接视为统一枚举。';
+COMMENT ON COLUMN "Exercise"."target" IS '主要目标肌群的目录标签，例如 quads 股四头肌、abs 腹肌。';
+COMMENT ON COLUMN "Exercise"."secondaryMuscles" IS '辅助肌群标签数组；空数组表示没有提供辅助肌群资料。';
+COMMENT ON COLUMN "Exercise"."stepsZh" IS '中文动作教学步骤数组，按数组顺序展示。';
+COMMENT ON COLUMN "Exercise"."stepsEn" IS '英文来源教学步骤数组；没有提供时为空数组。';
+COMMENT ON COLUMN "Exercise"."unit" IS '记录单位：reps 次数、seconds 秒、unspecified 未指定；社区动作进入训练前必须确认明确单位。';
+COMMENT ON COLUMN "Exercise"."origin" IS '动作来源：builtin 练序内置文字、community 社区文字资料。';
+COMMENT ON COLUMN "Exercise"."sourceId" IS '来源中的原始动作编号；与练序统一稳定编号 id 区分。';
+COMMENT ON COLUMN "Exercise"."sourceCommit" IS '社区来源 Git 提交号，用于追溯固定数据版本；内置动作可为空。';
+COMMENT ON COLUMN "Exercise"."mistake" IS '常见错误或动作注意事项，可为空；不代表个体医疗诊断。';
+COMMENT ON COLUMN "Exercise"."updatedAt" IS '文字资料最近更新时间；由 Prisma 更新维护，直接 SQL 更新不会自动刷新。';
+
+COMMENT ON TABLE "PlanVersion" IS '用户计划版本：保存当时资料和训练目标快照；禁止 UPDATE，修改必须插入新版本。';
+COMMENT ON COLUMN "PlanVersion"."id" IS '计划版本记录唯一编号（UUID，主键）；不是用户可见的递增版本号。';
+COMMENT ON COLUMN "PlanVersion"."userId" IS '所属用户编号，关联 User.id；与 version 共同构成唯一约束。';
+COMMENT ON COLUMN "PlanVersion"."version" IS '同一用户的计划版本号，从 1 开始；不是软件版本或备份格式版本。';
+COMMENT ON COLUMN "PlanVersion"."snapshot" IS '不可变计划 JSON 快照：当前资料保存接口包含 version、reason、profile、adjusted、days；days.actions 保存 exerciseId、name、unit、sets、targetMin、targetMax、restSeconds、reason、acknowledged。当前为规则模板，不是真实 AI；旧版本不得覆盖。';
+COMMENT ON COLUMN "PlanVersion"."createdAt" IS '计划版本创建时刻，带时区时间戳。';
+
+COMMENT ON TABLE "Workout" IS '一次训练记录：引用同账户的计划版本，保留当时名称、起止时刻与状态；每个账户最多一项进行中训练。';
+COMMENT ON COLUMN "Workout"."userId" IS '所属用户编号，关联 User.id；与 id 组成联合主键，并限定引用计划的账户归属。';
+COMMENT ON COLUMN "Workout"."id" IS '训练稳定编号；同一编号可以在不同账户独立存在，不按日期或名称识别训练。';
+COMMENT ON COLUMN "Workout"."planVersion" IS '本次训练采用的计划版本号；与 userId 关联 PlanVersion，后续新计划不改写此记录。';
+COMMENT ON COLUMN "Workout"."planName" IS '训练采用的计划名称快照；保留当时名称，不随当前计划改名而变化。';
+COMMENT ON COLUMN "Workout"."date" IS '用户本地训练日历日期（YYYY-MM-DD），不是 UTC 起止时刻，也不表示某个瞬间。';
+COMMENT ON COLUMN "Workout"."status" IS '训练状态：active 进行中、completed 已完成；每账户最多一个 active。';
+COMMENT ON COLUMN "Workout"."startedAt" IS '训练开始时刻，带时区时间戳；旧版归档缺失时为空，不推测时间。';
+COMMENT ON COLUMN "Workout"."completedAt" IS '训练结束时刻，带时区时间戳；未完成或旧记录缺失时为空，不得早于已知开始时刻。';
+COMMENT ON COLUMN "Workout"."notes" IS '训练备注或旧数据归档说明；默认空字符串。';
+COMMENT ON COLUMN "Workout"."origin" IS '记录来源：manual 新建训练、legacy 旧版归档；不是动作库来源。';
+COMMENT ON COLUMN "Workout"."revision" IS '训练修改版本，初始为 1，预留给后续训练写入并发检查；当前训练写入 API 尚未实现。';
+
+COMMENT ON TABLE "WorkoutExercise" IS '一次训练中的动作实例：名称、单位与目标为当时快照；动作实例 ID 与动作库 ID 不同。';
+COMMENT ON COLUMN "WorkoutExercise"."userId" IS '所属用户编号；与 workoutId、id 组成联合主键，限定训练动作归属。';
+COMMENT ON COLUMN "WorkoutExercise"."workoutId" IS '所属训练编号；与 userId 关联 Workout，删除训练时级联删除动作实例。';
+COMMENT ON COLUMN "WorkoutExercise"."id" IS '本次训练内的动作实例编号，用于定位编辑；不是公共动作库 exerciseId。';
+COMMENT ON COLUMN "WorkoutExercise"."exerciseId" IS '跨训练比较用的稳定动作标识；保留旧版未知动作，不设置强制目录外键；历史身份禁止修改。';
+COMMENT ON COLUMN "WorkoutExercise"."name" IS '当次动作名称快照，不随目录译名改变。';
+COMMENT ON COLUMN "WorkoutExercise"."unit" IS '实际记录单位：reps 次数或 seconds 秒；不允许 unspecified，保存后禁止改变单位。';
+COMMENT ON COLUMN "WorkoutExercise"."position" IS '动作在本次训练中的排列位置，从 0 开始；同一训练中位置唯一。';
+COMMENT ON COLUMN "WorkoutExercise"."prescription" IS '当时计划目标 JSON，可为空以兼容旧记录：sets 组数、targetMin/targetMax 次数或秒数、restSeconds 休息秒数、reason 安排说明；单位由外层 unit 决定，不是实际完成成绩。';
+
+COMMENT ON TABLE "WorkoutSet" IS '实际完成的训练组：负重、次数或秒数、RIR 和不适反馈；不等于计划目标。';
+COMMENT ON COLUMN "WorkoutSet"."userId" IS '所属用户编号，与 workoutId、workoutExerciseId、id 组成联合主键。';
+COMMENT ON COLUMN "WorkoutSet"."workoutId" IS '所属训练编号，与 userId 共同限定训练归属。';
+COMMENT ON COLUMN "WorkoutSet"."workoutExerciseId" IS '所属当次动作实例编号，关联 WorkoutExercise.id；不是动作库编号 exerciseId。';
+COMMENT ON COLUMN "WorkoutSet"."id" IS '实际训练组的稳定编号；不能以数值相同判定同一组。';
+COMMENT ON COLUMN "WorkoutSet"."position" IS '组在当前动作内的排列位置，从 0 开始，当前动作内唯一。';
+COMMENT ON COLUMN "WorkoutSet"."loadKg" IS '实际负重，单位千克，十进制保留三位小数；录入边界 0–400 千克，不是推荐负重。';
+COMMENT ON COLUMN "WorkoutSet"."value" IS '实际完成数量，按所属动作 unit 解释：reps 为 1–100 次，seconds 为 1–3600 秒；不能将秒数当次数。';
+COMMENT ON COLUMN "WorkoutSet"."rir" IS '估计剩余次数：0、1、2、3；3 表示至少三次，缺失时为空，不等于实际完成次数。';
+COMMENT ON COLUMN "WorkoutSet"."pain" IS '是否报告疼痛或不适（true 是、false 否，默认 false）；是主观反馈，不是诊断结果。';
+
+COMMENT ON TABLE "WeightEntry" IS '体重测量记录：按稳定编号保留，每个用户同一天可以有多次测量，不按同数值去重。';
+COMMENT ON COLUMN "WeightEntry"."userId" IS '所属用户编号，关联 User.id；与 id 组成联合主键。';
+COMMENT ON COLUMN "WeightEntry"."id" IS '体重记录稳定编号；不是测量日期。';
+COMMENT ON COLUMN "WeightEntry"."date" IS '用户本地测量日历日期（YYYY-MM-DD）。';
+COMMENT ON COLUMN "WeightEntry"."kg" IS '测量体重，单位千克，十进制保留三位小数，必须大于 0；与 Profile 中当前体重资料区分。';
+
+-- 管理表只补说明，不改变 Prisma 管理的内容或结构。
+COMMENT ON TABLE "_prisma_migrations" IS 'Prisma 数据库结构迁移管理表；由工具维护，不是用户业务资料。';
+COMMENT ON COLUMN "_prisma_migrations"."id" IS '迁移执行记录唯一编号，由 Prisma 管理。';
+COMMENT ON COLUMN "_prisma_migrations"."checksum" IS '迁移文件校验值，用于检查已应用的迁移是否被改写。';
+COMMENT ON COLUMN "_prisma_migrations"."finished_at" IS '迁移完成时刻，可为空；不表示用户记录更新时间。';
+COMMENT ON COLUMN "_prisma_migrations"."migration_name" IS '迁移目录名称，对应 prisma/migrations 中的结构变更。';
+COMMENT ON COLUMN "_prisma_migrations"."logs" IS '迁移工具执行日志，可为空，由 Prisma 维护。';
+COMMENT ON COLUMN "_prisma_migrations"."rolled_back_at" IS '迁移被标记回滚的时刻，可为空，由 Prisma 维护。';
+COMMENT ON COLUMN "_prisma_migrations"."started_at" IS '迁移执行开始时刻。';
+COMMENT ON COLUMN "_prisma_migrations"."applied_steps_count" IS '迁移工具记录的已执行步骤数量，不是训练组数。';
+
+COMMIT;

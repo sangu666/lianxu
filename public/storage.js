@@ -1,5 +1,6 @@
-import { createDefaultState, validateProfile } from './core.js';
+import { createDefaultState, validateProfile, createPlan } from './core.js';
 import { isCalendarDate, migrateLegacyLogs, validateWorkoutData } from './workouts.js';
+import { validateEditablePlan } from './plan-document.js';
 
 // v2采用独立存储键；首次迁移不会删除v1，避免迁移后失去原始记录。
 export const STORAGE_KEY = 'lianxu-source-v2';
@@ -26,6 +27,9 @@ export function projectLogs(workouts) {
 export function validateState(state) {
   validateWorkoutData(state);
   validateProfile(state.profile);
+  if (state.editablePlan !== undefined) validateEditablePlan(state.editablePlan);
+  if (state.planOverrides !== undefined)
+    createPlan(state.profile, state.adjusted, state.planOverrides);
   if (!Number.isInteger(state.version) || state.version < 1 || typeof state.adjusted !== 'boolean')
     throw new Error('计划资料无效');
   if (!Array.isArray(state.weights) || !Array.isArray(state.history))
@@ -43,6 +47,9 @@ export function validateState(state) {
     throw new Error('体重日期重复');
   for (const item of state.history) {
     validateProfile(item?.profile);
+    if (item.editablePlan !== undefined) validateEditablePlan(item.editablePlan);
+    if (item.planOverrides !== undefined)
+      createPlan(item.profile, item.adjusted, item.planOverrides);
     if (
       !Number.isInteger(item.version) ||
       item.version < 1 ||
@@ -55,7 +62,11 @@ export function validateState(state) {
 }
 
 export function initialState() {
-  return { ...createDefaultState(), schemaVersion: 2, workouts: [] };
+  return {
+    ...createDefaultState(),
+    schemaVersion: 2,
+    workouts: /** @type {import('./workouts.js').Workout[]} */ ([]),
+  };
 }
 
 /** 去掉重复的计算字段logs，确保导出与存储只有一份真实训练数据。 */

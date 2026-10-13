@@ -1,4 +1,6 @@
-/** 个人训练条件的选项与最小筛选规则；动作教学和完整动作库留待下一阶段。 */
+import { PLAN_SLOTS, findBuiltinExercise } from './exercise-catalog.js';
+
+/** 个人训练条件的选项与筛选规则；自动排课只使用已整理的模板动作。 */
 export const EQUIPMENT_OPTIONS = [
   ['bodyweight', '自重 / 地垫'],
   ['dumbbells', '哑铃'],
@@ -82,39 +84,16 @@ export function validateTrainingPreferences(profile) {
     throw new Error('补充备注须为1000字以内的文字');
 }
 
-// 每项为[名称, 必需设备, 偏好类别, 限制标签]；标签用于筛选，不代表医学禁忌分类。
-const candidates = {
-  squat: [
-    ['高脚杯深蹲', 'dumbbells', 'freeweights', ['squat']],
-    ['腿举', 'legPress', 'machines', ['squat']],
-    ['自重深蹲', 'bodyweight', 'bodyweight', ['squat']],
-  ],
-  push: [
-    ['哑铃地板卧推', 'dumbbells', 'freeweights', ['push']],
-    ['器械推胸', 'chestMachine', 'machines', ['push']],
-    ['靠墙俯卧撑', 'bodyweight', 'bodyweight', ['push']],
-  ],
-  row: [
-    ['单臂哑铃划船', 'dumbbells', 'freeweights', ['pull']],
-    ['坐姿划船', 'rowMachine', 'machines', ['pull']],
-    ['坐姿弹力带划船', 'bands', 'bands', ['pull']],
-  ],
-  hinge: [
-    ['哑铃罗马尼亚硬拉', 'dumbbells', 'freeweights', ['hinge']],
-    ['罗马尼亚硬拉', 'barbell', 'freeweights', ['hinge']],
-    ['自重髋铰链练习', 'bodyweight', 'bodyweight', ['hinge']],
-  ],
-  overhead: [['站姿哑铃推举', 'dumbbells', 'freeweights', ['push', 'shoulder']]],
-  shoulder: [['哑铃侧平举', 'dumbbells', 'freeweights', ['shoulder']]],
-  glute: [['自重臀桥', 'bodyweight', 'bodyweight', ['glute']]],
-  curl: [['腿弯举', 'legCurl', 'machines', ['kneeFlexion']]],
-  verticalPull: [
-    ['高位下拉', 'latPulldown', 'machines', ['pull']],
-    ['坐姿弹力带划船', 'bands', 'bands', ['pull']],
-    ['单臂哑铃划船', 'dumbbells', 'freeweights', ['pull']],
-  ],
-  core: [['平板支撑', 'bodyweight', 'bodyweight', ['core']]],
-};
+// 从统一目录读取筛选字段，避免设备、名称和动作标签在不同模块中各自维护。
+const candidates = Object.fromEntries(
+  Object.entries(PLAN_SLOTS).map(([slot, ids]) => [
+    slot,
+    ids.map((id) => {
+      const item = findBuiltinExercise(`lianxu:${id}`);
+      return [item.name, item.device, item.category, item.patterns];
+    }),
+  ]),
+);
 const slotLabels = {
   squat: '蹲类',
   push: '水平推',

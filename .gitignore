@@ -6,9 +6,19 @@ coverage/
 !.env.example
 uploads/
 data/
+# 唯一允许发布的数据目录：已去除媒体和个人资料的公开动作元数据。
+!public/data/
+public/data/*
+!public/data/exercises.js
+!public/data/plan-index.js
+!public/data/EXERCISES-LICENSE.txt
+!public/data/EXERCISES-NOTICE.md
 *.log
 *.local
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# 原始下载与临时导入资料不纳入发布；公开产物位于public/data。
+work/

@@ -857,7 +857,8 @@ footer {
     color: var(--green);
   }
   #nav > .nav-body,
-  #nav > .nav-food {
+  #nav > .nav-food,
+  #nav > .nav-library {
     display: none;
   }
   .nav-today {
@@ -1109,4 +1110,167 @@ footer {
   .option-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+/* 动作资料的网格与弹层沿用分组卡片；弹层独立于训练表单，关闭后继续录入。 */
+.library-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 16px;
+  align-items: end;
+}
+.library-filters label {
+  min-width: 0;
+}
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+.exercise-card {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+}
+.exercise-card h2 {
+  font-size: 19px;
+  overflow-wrap: anywhere;
+  margin-top: 18px;
+}
+.exercise-card button {
+  margin-top: auto;
+  width: 100%;
+}
+.library-pages {
+  justify-content: center;
+  margin: 24px 0;
+  align-items: center;
+}
+.exercise-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 82dvh;
+  padding: 0;
+  overflow: hidden;
+}
+.exercise-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+/* 顶部不随正文滚动，关闭按钮有44px触控区域；标题较长时仍保持右侧可点击。 */
+.exercise-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.exercise-dialog-header h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 8px 0;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.exercise-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+.exercise-close svg {
+  width: 20px;
+  height: 20px;
+}
+.exercise-dialog-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.replacement-option {
+  padding: 16px 0 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.session .exercise-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.exercise-dialog h2,
+.exercise-dialog p,
+.exercise-steps li {
+  overflow-wrap: anywhere;
+}
+.exercise-steps {
+  padding-left: 24px;
+}
+.exercise-steps li {
+  margin: 12px 0;
+  line-height: 1.7;
+}
+.session .detail button {
+  display: block;
+  margin-top: 8px;
+  min-height: 44px;
+}
+@media (max-width: 1100px) {
+  .library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .library-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 767px) {
+  .library-grid,
+  .library-filters {
+    grid-template-columns: 1fr;
+  }
+}
+/* 账户归属提示沿用分组卡片；保存期间禁止重复提交，并保留表单内容。 */
+.account-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.account-panel p {
+  margin: 8px 0 0;
+}
+.account-panel > div {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.account-panel b {
+  overflow-wrap: anywhere; /* 长邮箱也不能撑破手机卡片。 */
+}
+.account-dialog {
+  max-width: 520px;
+}
+.account-dialog label {
+  margin-bottom: 16px;
+}
+.saving #content button,
+.saving #content input,
+.saving #content select,
+.saving #content textarea,
+.saving dialog button {
+  pointer-events: none;
+  opacity: 0.65;
+}
+.saving::after {
+  content: '正在保存到数据库…';
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 100;
+  background: #12345a;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 12px;
 }

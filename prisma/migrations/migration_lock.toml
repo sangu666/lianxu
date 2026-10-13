@@ -1,0 +1,2 @@
+# 数据库提供者固定为 PostgreSQL；迁移脚本与 Prisma 模型一起提交。
+provider = "postgresql"

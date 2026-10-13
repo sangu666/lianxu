@@ -1,0 +1,31 @@
+{
+  "format": "lianxu-plan-draft",
+  "version": 1,
+  "title": "格式示例，非个人训练处方",
+  "origin": "manual",
+  "days": [
+    {
+      "name": "示例训练日",
+      "actions": [
+        {
+          "exerciseId": "hasaneyldrm:2137",
+          "unit": "reps",
+          "sets": 2,
+          "targetMin": 8,
+          "targetMax": 12,
+          "restSeconds": 90,
+          "reason": "仅用于演示社区动作编号与JSON格式"
+        },
+        {
+          "exerciseId": "lianxu:plank",
+          "unit": "seconds",
+          "sets": 2,
+          "targetMin": 20,
+          "targetMax": 30,
+          "restSeconds": 60,
+          "reason": "仅用于演示计时目标，不能照搬为次数"
+        }
+      ]
+    }
+  ]
+}

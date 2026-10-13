@@ -6,18 +6,40 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "start": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
-    "test": "node --test",
-    "check": "node --check public/app.js && node --check public/core.js && node --check public/profile-rules.js && node --check public/workouts.js && node --check public/storage.js && node --check public/workout-view.js && npm run test && npm run build",
-    "format": "prettier --write public scripts test *.json *.md",
-    "format:check": "prettier --check public scripts test *.json *.md"
+    "test": "node --test test/*.test.js",
+    "check": "node --check public/app.js && node --check public/core.js && node --check public/profile-rules.js && node --check public/workouts.js && node --check public/storage.js && node --check public/workout-view.js && node --check public/exercise-catalog.js && node --check public/exercise-view.js && node --check public/data/exercises.js && node --check scripts/import-exercises.mjs && node --check public/exercise-replacements.js && node --check public/replacement-view.js && node --check public/plan-actions.js && node --check public/plan-document.js && node --check public/plan-editor-view.js && npm run test && npm run build && npm run backend:check",
+    "format": "prettier --write public scripts test server *.json *.md prisma.config.ts docs/BACKEND-*.md",
+    "format:check": "prettier --check public scripts test server *.json *.md prisma.config.ts docs/BACKEND-*.md",
+    "import:exercises": "node scripts/import-exercises.mjs",
+    "backend:generate": "prisma generate",
+    "backend:check": "npm run backend:generate && tsc -p tsconfig.server.json && prisma validate",
+    "backend:local": "npm run backend:generate && node scripts/backend-local.mjs",
+    "backend:start": "node --env-file=.env --import tsx server/start.ts",
+    "db:migrate": "node --env-file=.env node_modules/prisma/build/index.js migrate deploy",
+    "db:seed": "node --env-file=.env --import tsx server/seed.ts",
+    "test:backend": "npm run backend:check && node scripts/backend-tests.mjs"
   },
   "devDependencies": {
-    "prettier": "3.9.10"
+    "@types/node": "26.6.5",
+    "@types/pg": "8.23.1",
+    "embedded-postgres": "18.4.0-beta.17",
+    "prettier": "3.9.10",
+    "prisma": "7.10.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.3",
+    "@fastify/rate-limit": "11.2.1",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "fastify": "5.12.5",
+    "pg": "8.23.1"
   }
 }

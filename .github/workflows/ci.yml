@@ -16,6 +16,7 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run check
+      - run: npm run test:backend
   release:
     # 只有main的推送且检查成功才发布；PR检查不会获得仓库写权限。
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
